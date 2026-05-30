@@ -2,6 +2,9 @@ import { motion } from 'framer-motion'
 import { InfoPanel } from '@/components/InfoPanel'
 import { RSVPForm } from '@/components/RSVPForm'
 
+// Cuando tengas la imagen, reemplaza esta línea por: import headerBg from '@/assets/header-bg.jpg'
+const HEADER_BG = null
+
 export default function App() {
   return (
     <div className="min-h-screen" style={{ background: '#ffffff' }}>
@@ -12,9 +15,23 @@ export default function App() {
         transition={{ duration: 0.8, ease: 'easeOut' }}
         className="relative overflow-hidden py-16 text-center"
         style={{
-          background: 'linear-gradient(135deg, #731985 0%, #9a8ad8 100%)',
+          backgroundImage: HEADER_BG ? `url(${HEADER_BG})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          // Placeholder: se quita cuando haya imagen real
+          backgroundColor: '#3d1054',
         }}
       >
+        {/* Overlay oscuro sobre la imagen */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: HEADER_BG
+              ? 'linear-gradient(135deg, rgba(115,25,133,0.72) 0%, rgba(154,138,216,0.55) 100%)'
+              : 'linear-gradient(135deg, rgba(115,25,133,0.5) 0%, rgba(154,138,216,0.35) 100%)',
+          }}
+        />
+
         {/* Logo — absoluto en desktop, en flujo en móvil */}
         <div className="hidden lg:block absolute top-5 left-8 z-10">
           <img
@@ -26,7 +43,7 @@ export default function App() {
         </div>
 
         <div className="relative z-10 px-4 flex flex-col items-center gap-4">
-          {/* Logo centrado solo en móvil */}
+          {/* Logo centrado solo en móvil y tableta */}
           <img
             src="/logo.svg"
             alt="Logo de los novios"
