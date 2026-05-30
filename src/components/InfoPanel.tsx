@@ -10,7 +10,7 @@ const sections = [
   {
     icon: '📍',
     title: 'Ubicación de la Iglesia',
-    content: 'Parroquia San Antonio de Padua',
+    content: 'Parroquia San Antonio de Padua.',
     action: { label: 'Ubicación', url: 'https://maps.app.goo.gl/YRVqTELPNGVQjxAA8' },
   },
   {
@@ -22,7 +22,7 @@ const sections = [
   {
     icon: '🎉',
     title: 'Recepción',
-    content: 'Quinta Pedregal, San Antonio de Los Altos',
+    content: 'Quinta Pedregal, San Antonio de Los Altos.',
     action: { label: 'Ubicación', url: 'https://maps.app.goo.gl/xsQDaL9aiBvTy85d7' },
   },
   {
