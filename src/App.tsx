@@ -93,8 +93,8 @@ export default function App() {
 
       {/* Footer */}
       <footer className="py-8 text-center text-xs text-gray-400">
-        <span style={{ color: '#cb9b25' }}>✦</span> Hecho con amor{' '}
-        <span style={{ color: '#cb9b25' }}>✦</span>
+        <span style={{ color: '#cb9b25' }}>🦄</span> Hecho con amor{' '}
+        <span style={{ color: '#cb9b25' }}>☕️</span>
       </footer>
     </div>
   )
