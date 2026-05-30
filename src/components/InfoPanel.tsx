@@ -28,7 +28,7 @@ const sections = [
   {
     icon: '📞',
     title: 'Contacto',
-    content: '0412-028-3147',
+    content: '0412-0283147',
     action: { label: 'WhatsApp', url: 'https://wa.me/584120283147' },
   },
 ]

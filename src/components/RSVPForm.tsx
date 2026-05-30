@@ -159,7 +159,7 @@ export function RSVPForm() {
         <Input
           id="telefono"
           type="tel"
-          placeholder="0412-000-0000"
+          placeholder="0412-0000000"
           value={form.telefono ?? ''}
           onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
           className={`h-12 text-base px-4 ${errors.telefono ? 'border-red-400' : ''}`}
