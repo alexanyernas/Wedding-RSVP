@@ -1,17 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronsUpDownIcon } from 'lucide-react'
+import { ChevronDownIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { getInvitados, isGrupoRegistrado, submitRSVP } from '@/api/rsvp'
 import type { Invitado, RSVPEntry } from '@/types/rsvp'
@@ -52,7 +43,6 @@ export function RSVPForm() {
   const [listError, setListError] = useState<string | null>(null)
 
   const [selectedGrupo, setSelectedGrupo] = useState<string>('')
-  const [grupoOpen, setGrupoOpen] = useState(false)
   const [grupoYaRegistrado, setGrupoYaRegistrado] = useState(false)
   const [checkingGrupo, setCheckingGrupo] = useState(false)
 
@@ -63,6 +53,8 @@ export function RSVPForm() {
   const [success, setSuccess] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+
+  const personasAnchorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     getInvitados()
@@ -96,6 +88,15 @@ export function RSVPForm() {
       .catch(() => {})
       .finally(() => setCheckingGrupo(false))
   }, [selectedGrupo])
+
+  // Scroll suave al área de personas cuando se selecciona un grupo
+  useEffect(() => {
+    if (!selectedGrupo || checkingGrupo) return
+    const id = setTimeout(() => {
+      personasAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 150)
+    return () => clearTimeout(id)
+  }, [selectedGrupo, checkingGrupo, grupoYaRegistrado])
 
   const cantidadAsistiendo = useMemo(
     () => Object.values(asistencias).filter((v) => v === 'si').length,
@@ -190,62 +191,35 @@ export function RSVPForm() {
       animate="visible"
       className="flex flex-col gap-6"
     >
-      {/* Selector de grupo con autocompletado */}
+      {/* Selector de grupo */}
       <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
         <Label htmlFor="grupo" className="font-medium text-sm">
           Selecciona tu invitación
         </Label>
-        <Popover open={grupoOpen} onOpenChange={setGrupoOpen}>
-          <PopoverTrigger
-            render={
-              <button
-                type="button"
-                id="grupo"
-                disabled={loadingList}
-                aria-expanded={grupoOpen}
-                className="flex h-12 w-full items-center justify-between rounded-md border border-input bg-transparent px-4 text-left text-sm outline-none focus:ring-2 focus:ring-[#9a8ad8] disabled:opacity-50"
-              >
-                <span className={selectedGrupo ? '' : 'text-muted-foreground'}>
-                  {loadingList
-                    ? 'Cargando…'
-                    : selectedGrupo || '— Elige tu nombre o grupo —'}
-                </span>
-                <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
-              </button>
-            }
-          />
-          <PopoverContent
-            align="start"
-            side="bottom"
-            collisionAvoidance={{ side: 'none' }}
-            initialFocus={false}
-            className="w-[var(--anchor-width)] min-w-[280px] p-0"
+        <div className="relative">
+          <select
+            id="grupo"
+            value={selectedGrupo}
+            onChange={(e) => setSelectedGrupo(e.target.value)}
+            disabled={loadingList}
+            className="h-12 w-full appearance-none rounded-md border border-input bg-transparent pl-4 pr-10 text-sm outline-none focus:ring-2 focus:ring-[#9a8ad8] disabled:opacity-50"
           >
-            <Command>
-              <CommandInput placeholder="Buscar invitación…" />
-              <CommandList>
-                <CommandEmpty>No se encontró ninguna invitación.</CommandEmpty>
-                <CommandGroup>
-                  {grupos.map((g) => (
-                    <CommandItem
-                      key={g}
-                      value={g}
-                      data-checked={selectedGrupo === g ? 'true' : 'false'}
-                      onSelect={(val) => {
-                        setSelectedGrupo(val)
-                        setGrupoOpen(false)
-                      }}
-                    >
-                      {g}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+            <option value="">
+              {loadingList ? 'Cargando…' : '— Elige tu nombre o grupo —'}
+            </option>
+            {grupos.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 opacity-60" />
+        </div>
         {listError && <p className="text-xs text-red-500">{listError}</p>}
       </motion.div>
+
+      {/* Anchor para scroll suave */}
+      <div ref={personasAnchorRef} aria-hidden="true" />
 
       {/* Estado del grupo / personas */}
       <AnimatePresence mode="wait">
