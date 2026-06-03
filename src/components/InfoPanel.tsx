@@ -33,7 +33,7 @@ const sections = [
   },
   {
     icon: '🎁',
-    title: 'Lista de Deseos',
+    title: 'Ideas de Regalo',
     content: 'Tu presencia es nuestro mejor regalo, pero si deseas consentirnos…',
     action: { label: 'Ver lista', url: 'https://www.wishbob.com/kstfhdvreq' },
   },
