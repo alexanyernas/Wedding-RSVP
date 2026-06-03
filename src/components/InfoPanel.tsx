@@ -31,6 +31,12 @@ const sections = [
     content: '0412-0283147',
     action: { label: 'WhatsApp', url: 'https://wa.me/584120283147' },
   },
+  {
+    icon: '🎁',
+    title: 'Lista de Deseos',
+    content: 'Tu presencia es nuestro mejor regalo, pero si deseas consentirnos…',
+    action: { label: 'Ver lista', url: 'https://www.wishbob.com/kstfhdvreq' },
+  },
 ]
 
 const containerVariants = {

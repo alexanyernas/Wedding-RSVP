@@ -2,8 +2,9 @@ import { motion } from 'framer-motion'
 import { InfoPanel } from '@/components/InfoPanel'
 import { RSVPForm } from '@/components/RSVPForm'
 
-// Cuando tengas la imagen, reemplaza esta línea por: import headerBg from '@/assets/header-bg.jpg'
-const HEADER_BG = null
+import headerBg from '@/assets/header-bg.webp'
+import dressCodeImg from '@/assets/dress-code.webp'
+const HEADER_BG = headerBg
 
 export default function App() {
   return (
@@ -13,23 +14,35 @@ export default function App() {
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: 'easeOut' }}
-        className="relative overflow-hidden py-16 text-center"
-        style={{
-          backgroundImage: HEADER_BG ? `url(${HEADER_BG})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          // Placeholder: se quita cuando haya imagen real
-          backgroundColor: '#3d1054',
-        }}
+        className="relative overflow-hidden py-16 lg:py-28 text-center"
+        style={{ backgroundColor: '#3d1054' }}
       >
-        {/* Overlay oscuro sobre la imagen */}
+        {HEADER_BG && (
+          <>
+            {/* Mobile / tablet: carrusel infinito (2 copias lado a lado) */}
+            <div className="absolute inset-0 overflow-hidden lg:hidden">
+              <div className="flex h-full header-img-strip" style={{ width: 'max-content' }}>
+                <img src={HEADER_BG} alt="" style={{ height: '100%', width: 'auto', flexShrink: 0 }} />
+                <img src={HEADER_BG} alt="" style={{ height: '100%', width: 'auto', flexShrink: 0 }} />
+              </div>
+            </div>
+
+            {/* Desktop: imagen estática */}
+            <div
+              className="absolute inset-0 hidden lg:block"
+              style={{
+                backgroundImage: `url(${HEADER_BG})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'top center',
+              }}
+            />
+          </>
+        )}
+
+        {/* Overlay morado oscuro */}
         <div
           className="absolute inset-0"
-          style={{
-            background: HEADER_BG
-              ? 'linear-gradient(135deg, rgba(115,25,133,0.72) 0%, rgba(154,138,216,0.55) 100%)'
-              : 'linear-gradient(135deg, rgba(115,25,133,0.5) 0%, rgba(154,138,216,0.35) 100%)',
-          }}
+          style={{ background: 'rgba(115,25,133,0.88)' }}
         />
 
         {/* Logo — absoluto en desktop, en flujo en móvil */}
@@ -87,23 +100,32 @@ export default function App() {
             <InfoPanel />
           </div>
 
-          {/* Columna derecha — Formulario */}
-          <div>
-            <motion.h2
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="mb-6 text-lg font-semibold"
-              style={{ color: '#731985' }}
-            >
-              Confirma tu Asistencia
-            </motion.h2>
-            <div
-              className="rounded-2xl border p-6 shadow-sm"
-              style={{ borderColor: '#9a8ad830', background: '#ffffff' }}
-            >
-              <RSVPForm />
-            </div>
+          {/* Columna derecha — Código de vestimenta */}
+          <div className="overflow-hidden rounded-2xl lg:-mt-10">
+            <img
+              src={dressCodeImg}
+              alt="Código de vestimenta"
+              className="block h-full w-full object-cover"
+            />
+          </div>
+        </div>
+
+        {/* Fila inferior — Formulario */}
+        <div className="mt-12">
+          <motion.h2
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="mb-6 text-lg font-semibold"
+            style={{ color: '#731985' }}
+          >
+            Confirma tu Asistencia
+          </motion.h2>
+          <div
+            className="rounded-2xl border p-6 shadow-sm"
+            style={{ borderColor: '#9a8ad830', background: '#ffffff' }}
+          >
+            <RSVPForm />
           </div>
         </div>
       </main>
