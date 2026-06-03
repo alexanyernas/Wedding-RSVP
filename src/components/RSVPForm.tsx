@@ -1,18 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronsUpDownIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { submitRSVP } from '@/api/rsvp'
-import type { RSVPFormData } from '@/types/rsvp'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { cn } from '@/lib/utils'
+import { getInvitados, isGrupoRegistrado, submitRSVP } from '@/api/rsvp'
+import type { Invitado, RSVPEntry } from '@/types/rsvp'
 
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15 },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
 }
 
 const itemVariants = {
@@ -22,77 +28,127 @@ const itemVariants = {
 
 const successVariants = {
   hidden: { opacity: 0, scale: 0.8 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: { type: 'spring' as const, stiffness: 200 },
-  },
+  visible: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 200 } },
 }
 
-interface FormErrors {
-  nombre?: string
-  apellido?: string
-  telefono?: string
-  asistira?: string
-  tiene_vehiculo?: string
+type Asistencia = 'si' | 'no' | null
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return (parts[0][0] ?? '').toUpperCase()
+  return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase()
+}
+
+function gridColsClass(count: number): string {
+  if (count === 1) return 'max-w-xs'
+  if (count === 2) return 'grid grid-cols-1 sm:grid-cols-2 gap-3'
+  if (count === 3) return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
+  return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3'
 }
 
 export function RSVPForm() {
-  const [form, setForm] = useState<Partial<RSVPFormData>>({})
-  const [errors, setErrors] = useState<FormErrors>({})
-  const [loading, setLoading] = useState(false)
+  const [invitados, setInvitados] = useState<Invitado[]>([])
+  const [loadingList, setLoadingList] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
+
+  const [selectedGrupo, setSelectedGrupo] = useState<string>('')
+  const [grupoOpen, setGrupoOpen] = useState(false)
+  const [grupoYaRegistrado, setGrupoYaRegistrado] = useState(false)
+  const [checkingGrupo, setCheckingGrupo] = useState(false)
+
+  const [asistencias, setAsistencias] = useState<Record<string, Asistencia>>({})
+  const [tieneVehiculo, setTieneVehiculo] = useState<boolean | null>(null)
+
+  const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
-  function handleAsistiraChange(val: string) {
-    const asistira = val === 'si'
-    setForm((f) => ({
-      ...f,
-      asistira,
-      tiene_vehiculo: asistira ? f.tiene_vehiculo : undefined,
-    }))
-    if (!asistira) {
-      setErrors((e) => ({ ...e, asistira: undefined, tiene_vehiculo: undefined }))
-    }
+  useEffect(() => {
+    getInvitados()
+      .then((data) => setInvitados(data))
+      .catch((err) => setListError(err instanceof Error ? err.message : 'Error cargando lista'))
+      .finally(() => setLoadingList(false))
+  }, [])
+
+  const grupos = useMemo(() => {
+    const set = new Set(invitados.map((i) => i.grupo))
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'))
+  }, [invitados])
+
+  const personasDelGrupo = useMemo(
+    () => invitados.filter((i) => i.grupo === selectedGrupo),
+    [invitados, selectedGrupo],
+  )
+
+  useEffect(() => {
+    setAsistencias({})
+    setTieneVehiculo(null)
+    setValidationError(null)
+    setServerError(null)
+    setGrupoYaRegistrado(false)
+
+    if (!selectedGrupo) return
+
+    setCheckingGrupo(true)
+    isGrupoRegistrado(selectedGrupo)
+      .then((registrado) => setGrupoYaRegistrado(registrado))
+      .catch(() => {})
+      .finally(() => setCheckingGrupo(false))
+  }, [selectedGrupo])
+
+  const cantidadAsistiendo = useMemo(
+    () => Object.values(asistencias).filter((v) => v === 'si').length,
+    [asistencias],
+  )
+  const algunoAsiste = cantidadAsistiendo > 0
+  const esIndividual = personasDelGrupo.length === 1
+  const vehiculoSingular = cantidadAsistiendo === 1
+
+  function setAsistencia(id: string, value: Asistencia) {
+    setAsistencias((a) => ({ ...a, [id]: value }))
   }
 
-  function validate(): boolean {
-    const newErrors: FormErrors = {}
-
-    if (!form.nombre || form.nombre.trim().length < 2)
-      newErrors.nombre = 'El nombre debe tener al menos 2 caracteres'
-
-    if (!form.apellido || form.apellido.trim().length < 2)
-      newErrors.apellido = 'El apellido debe tener al menos 2 caracteres'
-
-    if (!form.telefono || !/^\+?[\d\s\-()]{7,}$/.test(form.telefono.trim()))
-      newErrors.telefono = 'Ingresa un número de teléfono válido'
-
-    if (form.asistira === undefined)
-      newErrors.asistira = 'Por favor selecciona si asistirás'
-
-    if (form.asistira === true && form.tiene_vehiculo === undefined)
-      newErrors.tiene_vehiculo = 'Por favor selecciona una opción'
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!validate()) return
-
-    setLoading(true)
+    setValidationError(null)
     setServerError(null)
 
-    try {
-      await submitRSVP(form as RSVPFormData)
-      setSuccess(true)
-    } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Error inesperado')
-    } finally {
-      setLoading(false)
+    if (!selectedGrupo) {
+      setValidationError('Selecciona tu invitación')
+      return
     }
+
+    const faltaResponder = personasDelGrupo.some((p) => !asistencias[p.id])
+    if (faltaResponder) {
+      setValidationError(
+        esIndividual ? 'Por favor indica si asistirás' : 'Por favor responde por cada persona',
+      )
+      return
+    }
+
+    if (algunoAsiste && tieneVehiculo === null) {
+      setValidationError(
+        vehiculoSingular ? 'Indica si vendrás en vehículo' : 'Indica si vendrán en vehículo',
+      )
+      return
+    }
+
+    const entries: RSVPEntry[] = personasDelGrupo.map((p) => {
+      const asiste = asistencias[p.id] === 'si'
+      return {
+        grupo: selectedGrupo,
+        nombre_completo: p.nombre_completo,
+        asistira: asiste,
+        tiene_vehiculo: asiste ? tieneVehiculo : null,
+      }
+    })
+
+    setSubmitting(true)
+    submitRSVP(entries)
+      .then(() => setSuccess(true))
+      .catch((err) => setServerError(err instanceof Error ? err.message : 'Error inesperado'))
+      .finally(() => setSubmitting(false))
   }
 
   if (success) {
@@ -112,10 +168,14 @@ export function RSVPForm() {
         <h3 className="text-2xl font-semibold" style={{ color: '#731985' }}>
           ¡Confirmación recibida!
         </h3>
-        <p className="text-gray-500 max-w-xs">
-          {form.asistira
-            ? `¡Nos alegra mucho que puedas acompañarnos, ${form.nombre}!`
-            : `Gracias por avisarnos, ${form.nombre}. Te tendremos en nuestros corazones.`}
+        <p className="text-gray-500 max-w-md">
+          {algunoAsiste
+            ? vehiculoSingular
+              ? '¡Nos alegra mucho que puedas acompañarnos!'
+              : '¡Nos alegra mucho que puedan acompañarnos!'
+            : esIndividual
+              ? 'Gracias por avisarnos. Te tendremos en nuestros corazones.'
+              : 'Gracias por avisarnos. Los tendremos en nuestros corazones.'}
         </p>
         <div className="mt-2 h-px w-24 opacity-60" style={{ background: '#cb9b25' }} />
       </motion.div>
@@ -128,122 +188,244 @@ export function RSVPForm() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
     >
+      {/* Selector de grupo con autocompletado */}
       <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
-        <Label htmlFor="nombre" className="font-medium text-sm">Nombre</Label>
-        <Input
-          id="nombre"
-          placeholder="María"
-          value={form.nombre ?? ''}
-          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-          className={`h-12 text-base px-4 ${errors.nombre ? 'border-red-400' : ''}`}
-        />
-        {errors.nombre && <p className="text-xs text-red-500">{errors.nombre}</p>}
-      </motion.div>
-
-      <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
-        <Label htmlFor="apellido" className="font-medium text-sm">Apellido</Label>
-        <Input
-          id="apellido"
-          placeholder="García"
-          value={form.apellido ?? ''}
-          onChange={(e) => setForm((f) => ({ ...f, apellido: e.target.value }))}
-          className={`h-12 text-base px-4 ${errors.apellido ? 'border-red-400' : ''}`}
-        />
-        {errors.apellido && <p className="text-xs text-red-500">{errors.apellido}</p>}
-      </motion.div>
-
-      <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
-        <Label htmlFor="telefono" className="font-medium text-sm">Teléfono</Label>
-        <Input
-          id="telefono"
-          type="tel"
-          placeholder="0412-0000000"
-          value={form.telefono ?? ''}
-          onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
-          className={`h-12 text-base px-4 ${errors.telefono ? 'border-red-400' : ''}`}
-        />
-        {errors.telefono && <p className="text-xs text-red-500">{errors.telefono}</p>}
-      </motion.div>
-
-      <motion.div variants={itemVariants} className="flex flex-col gap-2">
-        <Label className="font-medium text-sm">¿Asistirás?</Label>
-        <RadioGroup
-          value={form.asistira === undefined ? '' : form.asistira ? 'si' : 'no'}
-          onValueChange={handleAsistiraChange}
-          className="flex gap-6"
-        >
-          <div className="flex items-center gap-2">
-            <RadioGroupItem value="si" id="asistira-si" />
-            <Label htmlFor="asistira-si" className="cursor-pointer font-normal">
-              Sí, asistiré
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <RadioGroupItem value="no" id="asistira-no" />
-            <Label htmlFor="asistira-no" className="cursor-pointer font-normal">
-              No podré asistir
-            </Label>
-          </div>
-        </RadioGroup>
-        {errors.asistira && <p className="text-xs text-red-500">{errors.asistira}</p>}
-      </motion.div>
-
-      <AnimatePresence>
-        {form.asistira === true && (
-          <motion.div
-            key="vehiculo"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } }}
-            exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
-            className="flex flex-col gap-2"
+        <Label htmlFor="grupo" className="font-medium text-sm">
+          Selecciona tu invitación
+        </Label>
+        <Popover open={grupoOpen} onOpenChange={setGrupoOpen}>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                id="grupo"
+                disabled={loadingList}
+                aria-expanded={grupoOpen}
+                className="flex h-12 w-full items-center justify-between rounded-md border border-input bg-transparent px-4 text-left text-sm outline-none focus:ring-2 focus:ring-[#9a8ad8] disabled:opacity-50"
+              >
+                <span className={selectedGrupo ? '' : 'text-muted-foreground'}>
+                  {loadingList
+                    ? 'Cargando…'
+                    : selectedGrupo || '— Elige tu nombre o grupo —'}
+                </span>
+                <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
+              </button>
+            }
+          />
+          <PopoverContent
+            align="start"
+            side="bottom"
+            collisionAvoidance={{ side: 'none' }}
+            initialFocus={false}
+            className="w-[var(--anchor-width)] min-w-[280px] p-0"
           >
-            <Label className="font-medium text-sm">¿Asistirás en vehículo?</Label>
-            <RadioGroup
-              value={form.tiene_vehiculo === undefined ? '' : form.tiene_vehiculo ? 'si' : 'no'}
-              onValueChange={(val: string) =>
-                setForm((f) => ({ ...f, tiene_vehiculo: val === 'si' }))
-              }
-              className="flex gap-6"
+            <Command>
+              <CommandInput placeholder="Buscar invitación…" />
+              <CommandList>
+                <CommandEmpty>No se encontró ninguna invitación.</CommandEmpty>
+                <CommandGroup>
+                  {grupos.map((g) => (
+                    <CommandItem
+                      key={g}
+                      value={g}
+                      data-checked={selectedGrupo === g ? 'true' : 'false'}
+                      onSelect={(val) => {
+                        setSelectedGrupo(val)
+                        setGrupoOpen(false)
+                      }}
+                    >
+                      {g}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        {listError && <p className="text-xs text-red-500">{listError}</p>}
+      </motion.div>
+
+      {/* Estado del grupo / personas */}
+      <AnimatePresence mode="wait">
+        {selectedGrupo && checkingGrupo && (
+          <motion.p
+            key="checking"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-sm text-gray-500"
+          >
+            Verificando…
+          </motion.p>
+        )}
+
+        {selectedGrupo && !checkingGrupo && grupoYaRegistrado && (
+          <motion.div
+            key="ya-registrado"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          >
+            Esta invitación ya fue confirmada. Si necesitas modificar algo, contáctanos por WhatsApp.
+          </motion.div>
+        )}
+
+        {selectedGrupo && !checkingGrupo && !grupoYaRegistrado && (
+          <motion.div
+            key="personas"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col gap-6"
+          >
+            <div className="flex flex-col gap-3">
+              <Label className="font-medium text-sm">
+                {esIndividual ? '¿Podrás acompañarnos?' : '¿Quiénes podrán acompañarnos?'}
+              </Label>
+              <div className={gridColsClass(personasDelGrupo.length)}>
+                {personasDelGrupo.map((p) => {
+                  const valor = asistencias[p.id]
+                  const isSi = valor === 'si'
+                  const isNo = valor === 'no'
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex flex-col items-center gap-3 rounded-xl border p-4 text-center transition-colors"
+                      style={{
+                        borderColor: valor ? '#9a8ad860' : '#9a8ad825',
+                        background: valor ? '#9a8ad810' : '#ffffff',
+                      }}
+                    >
+                      <div
+                        className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold"
+                        style={{ background: '#9a8ad820', color: '#731985' }}
+                      >
+                        {getInitials(p.nombre_completo)}
+                      </div>
+                      <p className="text-sm font-medium leading-tight text-gray-700 min-h-[2.5rem] flex items-center">
+                        {p.nombre_completo}
+                      </p>
+                      <div className="flex w-full gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAsistencia(p.id, 'si')}
+                          aria-pressed={isSi}
+                          className={cn(
+                            'flex-1 rounded-md py-2 text-sm font-medium transition-colors',
+                            isSi
+                              ? 'text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                          )}
+                          style={isSi ? { background: '#9a8ad8' } : undefined}
+                        >
+                          Sí
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAsistencia(p.id, 'no')}
+                          aria-pressed={isNo}
+                          className={cn(
+                            'flex-1 rounded-md py-2 text-sm font-medium transition-colors',
+                            isNo
+                              ? 'bg-gray-500 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                          )}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {algunoAsiste && (
+                <motion.div
+                  key="vehiculo"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                    transition: { duration: 0.35, ease: 'easeOut' as const },
+                  }}
+                  exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
+                  className="flex flex-col gap-2"
+                >
+                  <Label className="font-medium text-sm">
+                    {vehiculoSingular ? '¿Vendrás en vehículo?' : '¿Vendrán en vehículo?'}
+                  </Label>
+                  <div className="flex gap-2 max-w-xs">
+                    <button
+                      type="button"
+                      onClick={() => setTieneVehiculo(true)}
+                      aria-pressed={tieneVehiculo === true}
+                      className={cn(
+                        'flex-1 rounded-md py-2.5 text-sm font-medium transition-colors',
+                        tieneVehiculo === true
+                          ? 'text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                      )}
+                      style={tieneVehiculo === true ? { background: '#9a8ad8' } : undefined}
+                    >
+                      Sí
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTieneVehiculo(false)}
+                      aria-pressed={tieneVehiculo === false}
+                      className={cn(
+                        'flex-1 rounded-md py-2.5 text-sm font-medium transition-colors',
+                        tieneVehiculo === false
+                          ? 'bg-gray-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                      )}
+                    >
+                      No
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {validationError && (
+                <motion.p
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="text-xs text-red-500"
+                >
+                  {validationError}
+                </motion.p>
+              )}
+              {serverError && (
+                <motion.p
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600"
+                >
+                  {serverError}
+                </motion.p>
+              )}
+            </AnimatePresence>
+
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full h-12 text-base font-semibold text-white"
+              style={{ background: submitting ? '#9a8ad880' : '#9a8ad8' }}
             >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="si" id="vehiculo-si" />
-                <Label htmlFor="vehiculo-si" className="cursor-pointer font-normal">Sí</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="no" id="vehiculo-no" />
-                <Label htmlFor="vehiculo-no" className="cursor-pointer font-normal">No</Label>
-              </div>
-            </RadioGroup>
-            {errors.tiene_vehiculo && <p className="text-xs text-red-500">{errors.tiene_vehiculo}</p>}
+              {submitting ? 'Enviando…' : 'Enviar respuesta'}
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <AnimatePresence>
-        {serverError && (
-          <motion.p
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600"
-          >
-            {serverError}
-          </motion.p>
-        )}
-      </AnimatePresence>
-
-      <motion.div variants={itemVariants}>
-        <Button
-          type="submit"
-          disabled={loading}
-          className="w-full h-12 text-base font-semibold text-white"
-          style={{ background: loading ? '#9a8ad880' : '#9a8ad8' }}
-        >
-          {loading ? 'Enviando...' : 'Enviar respuesta'}
-        </Button>
-      </motion.div>
     </motion.form>
   )
 }
